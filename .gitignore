@@ -1,0 +1,45 @@
+# Credenciais e arquivos sensíveis
+.env
+.env.local
+credentials.json
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtualenv
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+
+# Testes e logs
+*.log
+logs/
+test-results/
+
+# Screenshots de erro
+screenshots/
+*.png
+
+# Arquivos compilados
+*.pyc
+*.pyo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ChromeDriver específico
+chromedriver (cópia)
+chromedriver.exe (cópia)
+
