@@ -1,18 +1,22 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import calendar
+import random
 import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
+
 
 class Ponto:
-    def __init__(self, driver, user, password, contrato):
+    def __init__(self, driver, user, password, contrato, centro_custo="3"):
         self.driver = driver
         self.user = user
         self.password = password
         self.contrato = contrato
+        self.centro_custo = centro_custo
 
     def __str__(self):
         return str(self.driver)
@@ -39,24 +43,16 @@ class Ponto:
         time.sleep(1)
 
     def listar(self):
-        # Aguarda o loading desaparecer antes de interagir com os elementos
         print('     Aguardando loading desaparecer')
-
-        # Espera múltipla: invisibilidade E que o display seja 'none'
         WebDriverWait(self.driver, 15).until(
             EC.invisibility_of_element_located((By.ID, "loading-container"))
         )
-
-        # Aguarda extra para garantir que o loading realmente desapareceu
         time.sleep(1)
 
-        # Verifica se o loading realmente está invisível
         try:
             loading = self.driver.find_element(By.ID, "loading-container")
             display = loading.value_of_css_property("display")
             print(f'     Loading display: {display}')
-
-            # Se ainda estiver visível, aguarda mais
             if display != "none":
                 print('     Loading ainda visível, aguardando mais...')
                 WebDriverWait(self.driver, 10).until(
@@ -70,8 +66,6 @@ class Ponto:
         botao_ponto = WebDriverWait(self.driver, 15).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "span[ng-click='validarHome();']"))
         )
-
-        # Usa JavaScript para clicar, evitando problemas de interceptação
         self.driver.execute_script("arguments[0].click();", botao_ponto)
         time.sleep(1)
 
@@ -85,82 +79,40 @@ class Ponto:
         relogio.click()
         time.sleep(1)
 
-        # Verifica se apareceu um modal com botão OK e clica nele
         print('     Verificando se há modal de confirmação...')
-
         try:
             botao_ok = WebDriverWait(self.driver, 2).until(
                 EC.element_to_be_clickable(
                     (By.CSS_SELECTOR, "div.sa-confirm-button-container button.confirm")
                 )
             )
-
             print('     Modal encontrado - Clicando no botão OK')
             botao_ok.click()
-
-            # Aguarda o modal desaparecer antes de continuar
-            WebDriverWait(self.driver, 5).until(
-                EC.invisibility_of_element(botao_ok)
-            )
-
+            WebDriverWait(self.driver, 5).until(EC.invisibility_of_element(botao_ok))
             print('     Modal fechado - Continuando fluxo')
-
         except TimeoutException:
             print('     Nenhum modal encontrado - Continuando normalmente')
 
+        # --- Filtro: Centro de Custo ---
         print('     Centro de Custo / Unidade')
-        centro_custo = WebDriverWait(self.driver, 10).until(
-            lambda d: next(
-                (el for el in d.find_elements(By.CSS_SELECTOR, "campo-consulta-centro-custo input.code")
-                 if el.is_displayed() and not el.get_attribute("disabled")), None
-            )
+        self._preencher_input_consulta_js(
+            "campo-consulta-centro-custo input.code", self.centro_custo
         )
-        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", centro_custo)
-        ActionChains(self.driver).move_to_element(centro_custo).click().perform()
-        time.sleep(0.3)
-        centro_custo.clear()
-        centro_custo.send_keys("3")
-        WebDriverWait(self.driver, 5).until(
-            lambda d: centro_custo.get_attribute('value') == '3'
-        )
-        time.sleep(0.5)
 
+        # --- Filtro: Contrato ---
         print('     Contrato')
-        contrato_el = WebDriverWait(self.driver, 10).until(
-            lambda d: next(
-                (el for el in d.find_elements(By.CSS_SELECTOR, "campo-consulta-contrato input.code")
-                 if el.is_displayed() and not el.get_attribute("disabled")), None
-            )
+        self._preencher_input_consulta_js(
+            "campo-consulta-contrato input.code", self.contrato
         )
-        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", contrato_el)
-        ActionChains(self.driver).move_to_element(contrato_el).click().perform()
-        time.sleep(0.3)
-        contrato_el.clear()
-        contrato_el.send_keys(self.contrato)
-        WebDriverWait(self.driver, 5).until(
-            lambda d: contrato_el.get_attribute('value') == self.contrato
-        )
-        time.sleep(0.5)
 
+        # --- Filtro: Tipo de Atividade ---
         print('     Tipo de Atividade')
-        tipo_atividade = WebDriverWait(self.driver, 10).until(
-            lambda d: next(
-                (el for el in d.find_elements(By.CSS_SELECTOR, "campo-consulta-tipo-atividade input.code")
-                 if el.is_displayed() and not el.get_attribute("disabled")), None
-            )
+        self._preencher_input_consulta_js(
+            "campo-consulta-tipo-atividade input.code", "1"
         )
-        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", tipo_atividade)
-        ActionChains(self.driver).move_to_element(tipo_atividade).click().perform()
-        time.sleep(0.3)
-        tipo_atividade.clear()
-        tipo_atividade.send_keys("1")
-        WebDriverWait(self.driver, 5).until(
-            lambda d: tipo_atividade.get_attribute('value') == '1'
-        )
-        time.sleep(0.5)
 
+        # --- Data "A partir de": primeiro dia do mês ---
         print("A partir de")
-
         hoje = datetime.today()
         primeiro_dia = hoje.replace(day=1).strftime("%Y-%m-%d")
 
@@ -169,23 +121,20 @@ class Ponto:
                 (By.XPATH, "//label[contains(text(),'A partir de')]/following::input[@type='date'][1]")
             )
         )
-
         self.driver.execute_script("""
             arguments[0].value = arguments[1];
             arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
             arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
         """, campo_data, primeiro_dia)
-
-        # Aguarda o valor estar presente
         WebDriverWait(self.driver, 5).until(
             lambda d: campo_data.get_attribute('value') == primeiro_dia
         )
         time.sleep(1)
 
+        # --- Data "até": último dia do mês vigente ---
         print("até")
-
-        ultimo_dia = calendar.monthrange(hoje.year, hoje.month)[1]
-        data_final = hoje.replace(day=ultimo_dia).strftime("%Y-%m-%d")
+        ultimo_dia_num = calendar.monthrange(hoje.year, hoje.month)[1]
+        data_final = hoje.replace(day=ultimo_dia_num).strftime("%Y-%m-%d")
         print(f'     Data final calculada: {data_final}')
 
         campo_data_final = WebDriverWait(self.driver, 10).until(
@@ -193,201 +142,193 @@ class Ponto:
                 (By.XPATH, "(//input[@type='date'])[2]")
             )
         )
-
         self.driver.execute_script("""
             arguments[0].value = arguments[1];
             arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
             arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
         """, campo_data_final, data_final)
-
-        # Aguarda o valor estar presente
         WebDriverWait(self.driver, 5).until(
             lambda d: campo_data_final.get_attribute('value') == data_final
         )
         time.sleep(1)
 
+        # --- Clica em Incluir para abrir o formulário ---
         print("Clicando em Incluir")
-
         botao_incluir = WebDriverWait(self.driver, 10).until(
             EC.element_to_be_clickable(
                 (By.XPATH, "//button[.//span[contains(text(),'Incluir')]]")
             )
         )
-
         self.driver.execute_script("arguments[0].scrollIntoView(true);", botao_incluir)
         time.sleep(1)
-
         self.driver.execute_script("arguments[0].click();", botao_incluir)
 
-        # Aguarda o formulário de cadastro aparecer
         print('     Aguardando formulário de cadastro...')
         WebDriverWait(self.driver, 10).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "form.form-dados"))
         )
         time.sleep(1)
 
+    # ------------------------------------------------------------------
+    # Helper: preenche um input.code via JS (evita ElementNotInteractable)
+    # Usado apenas nos filtros da tela de listagem (não abre modal)
+    # ------------------------------------------------------------------
+    def _preencher_input_consulta_js(self, css_seletor, valor):
+        """Seta o valor de um input.code via JS sem abrir modal (para filtros)."""
+        campo = WebDriverWait(self.driver, 10).until(
+            lambda d: next(
+                (el for el in d.find_elements(By.CSS_SELECTOR, css_seletor)
+                 if el.is_displayed() and not el.get_attribute("disabled")), None
+            )
+        )
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", campo)
+        time.sleep(0.3)
+        self.driver.execute_script("""
+            var el = arguments[0];
+            var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            setter.call(el, arguments[1]);
+            el.dispatchEvent(new Event('input',  { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        """, campo, valor)
+        time.sleep(0.3)
+
+    # ------------------------------------------------------------------
+    # Helper: preenche um campo de consulta NO FORMULÁRIO DE CADASTRO
+    # Clica no input.code, digita, dispara blur, aguarda modal e seleciona
+    # ------------------------------------------------------------------
     def _preencher_campo_consulta(self, css_seletor, valor, nome_campo):
-        """
-        Encontra o input.code dentro do seletor, move o mouse até ele,
-        clica, digita o valor e dispara o blur para abrir o modal.
-        Depois aguarda o modal e clica no primeiro resultado.
-        """
         print(f'     {nome_campo}')
 
-        # Pega todos os elementos e filtra o que está visível e habilitado
-        elementos = self.driver.find_elements(By.CSS_SELECTOR, css_seletor)
-        campo = None
-        for el in elementos:
-            if el.is_displayed() and not el.get_attribute("disabled"):
-                campo = el
-                break
-
+        campo = WebDriverWait(self.driver, 15).until(
+            lambda d: next(
+                (el for el in d.find_elements(By.CSS_SELECTOR, css_seletor)
+                 if el.is_displayed() and not el.get_attribute("disabled")), None
+            )
+        )
         if not campo:
             print(f'     ERRO: campo {nome_campo} não encontrado ou desabilitado')
             return
 
-        # Scroll até o elemento
-        self.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", campo)
-        time.sleep(0.5)
-
-        # Usa ActionChains para mover o mouse até o elemento e clicar
-        actions = ActionChains(self.driver)
-        actions.move_to_element(campo).click().perform()
-        time.sleep(0.5)
-
-        # Limpa e digita
-        campo.clear()
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", campo)
         time.sleep(0.3)
+
+        # Clica via JS para garantir foco no contexto Angular
+        self.driver.execute_script("arguments[0].click(); arguments[0].focus();", campo)
+        time.sleep(0.3)
+
+        # Digita o valor diretamente no elemento com foco
+        campo.send_keys(Keys.CONTROL + "a")
+        campo.send_keys(Keys.DELETE)
+        time.sleep(0.2)
         campo.send_keys(valor)
         print(f'     Valor digitado: {valor}')
-        time.sleep(1)
+        time.sleep(0.8)
 
-        # Dispara o blur para acionar ng-blur -> abrirModalConsulta()
-        self.driver.execute_script("""
-            var el = arguments[0];
-            el.blur();
-            el.dispatchEvent(new FocusEvent('blur', { bubbles: true }));
-        """, campo)
-        print(f'     Blur disparado, aguardando modal...')
-        time.sleep(1)
-
-        # Aguarda o modal aparecer
-        try:
-            WebDriverWait(self.driver, 8).until(
-                EC.visibility_of_element_located((By.CSS_SELECTOR, "div.modal-content, div[role='dialog']"))
-            )
-            print(f'     Modal aberto')
-            time.sleep(1)
-
-            # Clica no primeiro resultado
-            primeiro = WebDriverWait(self.driver, 5).until(
-                EC.element_to_be_clickable((
-                    By.XPATH,
-                    "(//div[contains(@class,'modal-content') or @role='dialog']//tbody/tr)[1]"
-                ))
-            )
-            self.driver.execute_script("arguments[0].click();", primeiro)
-            print(f'     Primeiro resultado selecionado')
-            time.sleep(1)
-
-            # Aguarda modal fechar
-            WebDriverWait(self.driver, 8).until(
-                EC.invisibility_of_element_located((By.CSS_SELECTOR, "div.modal-content, div[role='dialog']"))
-            )
-            print(f'     Modal fechado')
-
-        except TimeoutException:
-            print(f'     Modal não apareceu, continuando...')
+        # Pressiona Tab para acionar ng-blur -> resolve o campo automaticamente
+        campo.send_keys(Keys.TAB)
+        time.sleep(0.3)
 
         # Confirma se a descrição foi preenchida
         try:
             desc_css = css_seletor.replace("input.code", "input.content")
-            WebDriverWait(self.driver, 5).until(
-                lambda d: d.find_element(By.CSS_SELECTOR, desc_css).get_attribute('value') != ''
+            desc = WebDriverWait(self.driver, 5).until(
+                lambda d: d.find_element(By.CSS_SELECTOR, desc_css).get_attribute('value') or None
             )
-            desc = self.driver.find_element(By.CSS_SELECTOR, desc_css).get_attribute('value')
             print(f'     {nome_campo} confirmado: {desc}')
         except:
             print(f'     {nome_campo}: descrição ainda não preenchida')
 
-    def cadastrar(self):
-        print('     Aguardando formulário estar pronto...')
+    # ------------------------------------------------------------------
+    # Preenche uma sessão completa do formulário de cadastro e salva
+    # data_str: "YYYY-MM-DD"
+    # hora_inicio_str / hora_fim_str: "HH:MM"
+    # primeiro_registro: se True, preenche também cliente/centro/contrato/tipo
+    # ------------------------------------------------------------------
+    def _cadastrar_sessao(self, data_str, hora_inicio_str, hora_fim_str, primeiro_registro=False):
+        print(f'\n     === Cadastrando {data_str} {hora_inicio_str}-{hora_fim_str} ===')
 
-        # Aguarda o formulário de cadastro estar visível e ativo
+        print('     Aguardando formulário estar pronto...')
         WebDriverWait(self.driver, 15).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "form.form-dados"))
         )
         time.sleep(1)
 
-        # Preenche cada campo de consulta usando o helper
+        # No primeiro registro do dia (manhã) precisamos preencher todos os campos;
+        # nas demais sessões o formulário pode já ter sido limpo (Incluir abre um novo)
+        # então sempre preenchemos tudo.
+
+        # Centro de Custo
         self._preencher_campo_consulta(
-            "campo-consulta-centro-custo input.code", "3", "Centro de Custo / Unidade"
+            "campo-consulta-centro-custo input.code", self.centro_custo, "Centro de Custo / Unidade"
         )
 
+        # Cliente: já vem pré-preenchido (código 39) — apenas verifica
         print('     Cliente')
         try:
             clientes = self.driver.find_elements(By.CSS_SELECTOR, "campo-consulta-pessoa input.code")
             for c in clientes:
                 if c.is_displayed():
                     val = c.get_attribute('value')
-                    print(f'     Cliente preenchido com: {val}')
+                    if val:
+                        print(f'     Cliente já preenchido com: {val}')
                     break
         except Exception as e:
-            print(f'     Erro ao verificar Cliente: {e}')
+            print(f'     Aviso ao verificar Cliente: {e}')
 
+        # Contrato
         self._preencher_campo_consulta(
             "campo-consulta-contrato input.code", self.contrato, "Contrato"
         )
 
+        # Tipo de Atividade
         self._preencher_campo_consulta(
             "campo-consulta-tipo-atividade input.code", "1", "Tipo de Atividade"
         )
 
+        # Data
         print('     Data')
         try:
             data_inputs = self.driver.find_elements(By.CSS_SELECTOR, "form-field[label='Data'] input[type='date']")
             data_input = next((el for el in data_inputs if el.is_displayed() and not el.get_attribute("disabled")), None)
             if data_input:
                 self.driver.execute_script("""
-                    arguments[0].value = '2026-02-23';
-                    arguments[0].dispatchEvent(new Event('input', { bubbles: true }));
+                    arguments[0].value = arguments[1];
+                    arguments[0].dispatchEvent(new Event('input',  { bubbles: true }));
                     arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
-                    arguments[0].dispatchEvent(new Event('blur',  { bubbles: true }));
-                """, data_input)
+                    arguments[0].dispatchEvent(new Event('blur',   { bubbles: true }));
+                """, data_input, data_str)
                 WebDriverWait(self.driver, 5).until(
-                    lambda d: data_input.get_attribute('value') == '2026-02-23'
+                    lambda d: data_input.get_attribute('value') == data_str
                 )
-                print('     Data preenchida com sucesso')
-                time.sleep(1)
+                print(f'     Data preenchida: {data_str}')
+                time.sleep(0.3)
         except Exception as e:
             print(f'     Erro ao preencher Data: {e}')
 
-        print('     Hora Início')
-        hi = None
+        # Hora Início
+        print(f'     Hora Início: {hora_inicio_str}')
         try:
             hi_inputs = self.driver.find_elements(By.CSS_SELECTOR, "form-field[label='Hora Início'] input[type='time']")
             hi = next((el for el in hi_inputs if el.is_displayed() and not el.get_attribute("disabled")), None)
             if hi:
-                # Clica, limpa e digita usando ActionChains para garantir foco real
                 ActionChains(self.driver).move_to_element(hi).click().perform()
                 time.sleep(0.3)
                 self.driver.execute_script("""
                     var el = arguments[0];
-                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    nativeInputValueSetter.call(el, '09:00');
+                    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                    setter.call(el, arguments[1]);
                     el.dispatchEvent(new Event('input',  { bubbles: true }));
                     el.dispatchEvent(new Event('change', { bubbles: true }));
-                """, hi)
-                WebDriverWait(self.driver, 5).until(lambda d: hi.get_attribute('value') == '09:00')
-                print('     Hora Início preenchida com sucesso')
-                # Dispara blur real para acionar ng-blur -> definirHoraFim / calcularTotalHoras
-                hi.send_keys('\t')
-                time.sleep(1)
+                """, hi, hora_inicio_str)
+                WebDriverWait(self.driver, 5).until(lambda d: hi.get_attribute('value') == hora_inicio_str)
+                print(f'     Hora Início preenchida: {hora_inicio_str}')
+                hi.send_keys(Keys.TAB)
+                time.sleep(0.3)
         except Exception as e:
             print(f'     Erro ao preencher Hora Início: {e}')
 
-        print('     Hora Fim')
-        hf = None
+        # Hora Fim
+        print(f'     Hora Fim: {hora_fim_str}')
         try:
             hf_inputs = self.driver.find_elements(By.CSS_SELECTOR, "form-field[label='Hora Fim'] input[type='time']")
             hf = next((el for el in hf_inputs if el.is_displayed() and not el.get_attribute("disabled")), None)
@@ -396,50 +337,54 @@ class Ponto:
                 time.sleep(0.3)
                 self.driver.execute_script("""
                     var el = arguments[0];
-                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    nativeInputValueSetter.call(el, '12:00');
+                    var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                    setter.call(el, arguments[1]);
                     el.dispatchEvent(new Event('input',  { bubbles: true }));
                     el.dispatchEvent(new Event('change', { bubbles: true }));
-                """, hf)
-                WebDriverWait(self.driver, 5).until(lambda d: hf.get_attribute('value') == '12:00')
-                print('     Hora Fim preenchida com sucesso')
-                # Dispara blur real para acionar ng-blur -> calcularTotalHoras
-                hf.send_keys('\t')
-                time.sleep(1)
+                """, hf, hora_fim_str)
+                WebDriverWait(self.driver, 5).until(lambda d: hf.get_attribute('value') == hora_fim_str)
+                print(f'     Hora Fim preenchida: {hora_fim_str}')
+                hf.send_keys(Keys.TAB)
+                time.sleep(0.3)
         except Exception as e:
             print(f'     Erro ao preencher Hora Fim: {e}')
 
+        # Total Horas: aguarda cálculo automático; se não vier, preenche manualmente
         print('     Total Horas')
         try:
             th_inputs = self.driver.find_elements(By.CSS_SELECTOR, "form-field[label='Total Horas'] input[type='time']")
             th = next((el for el in th_inputs if el.is_displayed()), None)
-
-            # Aguarda até 5s para ver se foi calculado automaticamente
-            try:
-                WebDriverWait(self.driver, 5).until(
-                    lambda d: th.get_attribute('value') not in ('', None)
-                )
-                print(f'     Total Horas calculado automaticamente: {th.get_attribute("value")}')
-            except TimeoutException:
-                # Não foi calculado, preenche manualmente (03:00 = 12:00 - 09:00)
-                print('     Total Horas não calculado, preenchendo manualmente...')
-                ActionChains(self.driver).move_to_element(th).click().perform()
-                time.sleep(0.3)
-                self.driver.execute_script("""
-                    var el = arguments[0];
-                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    nativeInputValueSetter.call(el, '03:00');
-                    el.dispatchEvent(new Event('input',  { bubbles: true }));
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                """, th)
-                WebDriverWait(self.driver, 5).until(lambda d: th.get_attribute('value') == '03:00')
-                th.send_keys('\t')
-                print(f'     Total Horas preenchido manualmente: 03:00')
-                time.sleep(1)
+            if th:
+                try:
+                    WebDriverWait(self.driver, 5).until(
+                        lambda d: th.get_attribute('value') not in ('', None)
+                    )
+                    print(f'     Total Horas calculado: {th.get_attribute("value")}')
+                except TimeoutException:
+                    # Calcula a diferença e preenche manualmente
+                    fmt = "%H:%M"
+                    diff = datetime.strptime(hora_fim_str, fmt) - datetime.strptime(hora_inicio_str, fmt)
+                    total_min = int(diff.total_seconds() // 60)
+                    total_str = f"{total_min // 60:02d}:{total_min % 60:02d}"
+                    print(f'     Preenchendo Total Horas manualmente: {total_str}')
+                    ActionChains(self.driver).move_to_element(th).click().perform()
+                    time.sleep(0.3)
+                    self.driver.execute_script("""
+                        var el = arguments[0];
+                        var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                        setter.call(el, arguments[1]);
+                        el.dispatchEvent(new Event('input',  { bubbles: true }));
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                    """, th, total_str)
+                    WebDriverWait(self.driver, 5).until(lambda d: th.get_attribute('value') == total_str)
+                    th.send_keys(Keys.TAB)
+                    print(f'     Total Horas preenchido: {total_str}')
+                    time.sleep(0.3)
         except Exception as e:
             print(f'     Erro ao preencher Total Horas: {e}')
-            time.sleep(1)
+            time.sleep(0.3)
 
+        # Descrição
         print('     Descrição')
         try:
             desc_els = self.driver.find_elements(By.CSS_SELECTOR, "form-field[label='Descrição'] textarea")
@@ -453,25 +398,24 @@ class Ponto:
                     arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
                 """, desc)
                 WebDriverWait(self.driver, 5).until(lambda d: desc.get_attribute('value') != '')
-                print('     Descrição preenchida com sucesso')
-                time.sleep(1)
+                print('     Descrição preenchida')
+                time.sleep(0.3)
         except Exception as e:
             print(f'     Erro ao preencher Descrição: {e}')
 
-        print('     Aguardando antes de salvar...')
-        time.sleep(1)
-
+        # Salvar
         print('     Clicando em Salvar')
+        time.sleep(0.3)
         try:
             salvares = self.driver.find_elements(By.XPATH, "//button[.//span[contains(text(),'Salvar')]]")
             salvar = next((el for el in salvares if el.is_displayed()), None)
             if salvar:
                 self.driver.execute_script("arguments[0].scrollIntoView(true);", salvar)
-                time.sleep(0.5)
+                time.sleep(0.3)
                 self.driver.execute_script("arguments[0].click();", salvar)
 
-                print('     Aguardando confirmação de salvamento...')
-                time.sleep(1)
+                print('     Aguardando confirmação...')
+                time.sleep(0.3)
 
                 try:
                     modal = WebDriverWait(self.driver, 5).until(
@@ -485,15 +429,88 @@ class Ponto:
                     time.sleep(1)
                     botao_ok = modal.find_element(By.CSS_SELECTOR, "button.confirm, button.swal2-confirm")
                     self.driver.execute_script("arguments[0].click();", botao_ok)
-                    print('     Modal confirmado')
+                    print('     Salvo com sucesso!')
                     WebDriverWait(self.driver, 5).until(EC.invisibility_of_element(modal))
-                    time.sleep(1)
+                    time.sleep(0.3)
                 except TimeoutException:
-                    print('     Nenhum modal de confirmação detectado')
+                    print('     Nenhum modal de confirmação após salvar')
 
         except Exception as e:
             print(f'     Erro ao clicar em Salvar: {e}')
 
-        print('     Processo de cadastro finalizado')
+    # ------------------------------------------------------------------
+    # Abre o formulário de um novo registro clicando em "Incluir"
+    # ------------------------------------------------------------------
+    def _clicar_incluir(self):
+        print('\n     Clicando em Incluir para próximo registro...')
+        botao_incluir = WebDriverWait(self.driver, 20).until(
+            EC.element_to_be_clickable((
+                By.XPATH,
+                "//button[.//span[normalize-space()='Incluir']]"
+            ))
+        )
+        self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", botao_incluir)
         time.sleep(1)
+        self.driver.execute_script("arguments[0].click();", botao_incluir)
+
+        WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, "form.form-dados"))
+        )
+        time.sleep(0.3)
+
+    # ------------------------------------------------------------------
+    # Loop principal: cadastra manhã + tarde de cada dia útil do mês
+    # do dia 1 até o dia de hoje (inclusive)
+    # ------------------------------------------------------------------
+    def cadastrar_mes(self):
+        hoje = datetime.today()
+        ano = hoje.year
+        mes = hoje.month
+        dia_atual = hoje.day
+
+        # Gera lista de todos os dias úteis do dia 1 até hoje
+        dias_uteis = []
+        dia = datetime(ano, mes, 1)
+        while dia.day <= dia_atual:
+            # 0=segunda ... 4=sexta, 5=sabado, 6=domingo
+            if dia.weekday() < 5:
+                dias_uteis.append(dia)
+            dia += timedelta(days=1)
+
+        total = len(dias_uteis)
+        print(f'\n=== Cadastrando {total} dias úteis de {dias_uteis[0].strftime("%d/%m/%Y")} até {dias_uteis[-1].strftime("%d/%m/%Y")} ===\n')
+
+        primeiro = True
+        for idx, dia in enumerate(dias_uteis):
+            data_str = dia.strftime("%Y-%m-%d")
+            print(f'\n--- Dia {idx + 1}/{total}: {dia.strftime("%d/%m/%Y (%A)")} ---')
+
+            # Manhã: 09:Xm → 12:Xm  (exatamente 3h, mesmo offset nos dois)
+            rnd_manha = random.randint(0, 5)
+            hi_manha = f"09:{rnd_manha:02d}"
+            hf_manha = f"12:{rnd_manha:02d}"
+
+            if not primeiro:
+                self._clicar_incluir()
+            primeiro = False
+
+            self._cadastrar_sessao(data_str, hi_manha, hf_manha)
+
+            # Tarde: 13:Xt → 18:Xt  (exatamente 5h, mesmo offset nos dois)
+            rnd_tarde = random.randint(0, 5)
+            hi_tarde = f"13:{rnd_tarde:02d}"
+            hf_tarde = f"18:{rnd_tarde:02d}"
+
+            self._clicar_incluir()
+            self._cadastrar_sessao(data_str, hi_tarde, hf_tarde)
+
+        print(f'\n=== Cadastro do mês concluído! {total * 2} registros inseridos ===')
+
+    # ------------------------------------------------------------------
+    # Mantém compatibilidade com main.py legado (cadastra apenas 1 sessão)
+    # ------------------------------------------------------------------
+    def cadastrar(self):
+        hoje = datetime.today()
+        data_str = hoje.strftime("%Y-%m-%d")
+        self._cadastrar_sessao(data_str, "09:00", "12:00")
 

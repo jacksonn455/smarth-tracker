@@ -11,6 +11,7 @@ def start():
     usuario = os.getenv("USER")
     senha = os.getenv("PASSWORD")
     contrato = os.getenv("CONTRATO")
+    centro_custo = os.getenv("CENTRO_CUSTO", "3")
 
     if not usuario or not senha:
         raise ValueError("Erro: USER e PASSWORD devem estar definidos no arquivo .env")
@@ -18,10 +19,10 @@ def start():
     if not contrato:
         raise ValueError("Erro: CONTRATO deve estar definido no arquivo .env")
 
-    step = Ponto(driver, usuario, senha, contrato)
+    step = Ponto(driver, usuario, senha, contrato, centro_custo)
     step.logar()
     step.listar()
-    step.cadastrar()
+    step.cadastrar_mes()
 
 if __name__ == "__main__":
     start()
