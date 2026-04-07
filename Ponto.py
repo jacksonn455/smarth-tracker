@@ -392,10 +392,22 @@ class Ponto:
             if desc:
                 self.driver.execute_script("arguments[0].focus();", desc)
                 time.sleep(0.3)
-                self.driver.execute_script("""
-                    arguments[0].value = 'Trabalhando nos Projeto: kora-mms-contrato, kora-mms-localidade';
-                    arguments[0].dispatchEvent(new Event('input',  { bubbles: true }));
-                    arguments[0].dispatchEvent(new Event('change', { bubbles: true }));
+
+                # Escolhe aleatoriamente uma das descrições
+                descricoes = [
+                    'Trabalhando nos Projeto: kora-mms-contrato',
+                    'Trabalhando nos Projeto: kora-mms-localidade',
+                    'Trabalhando nos Projeto: kora-mms-auditoria',
+                    'Trabalhando nos Projeto: kora-mms-commons',
+                    'Trabalhando nos Projeto: kora-mms-prestador',
+                    'Trabalhando nos Projeto: kora-mms-ordem-servico',
+                ]
+                
+                descricao_aleatoria = random.choice(descricoes)
+                self.driver.execute_script(f"""
+                    arguments[0].value = '{descricao_aleatoria}';
+                    arguments[0].dispatchEvent(new Event('input',  {{ bubbles: true }}));
+                    arguments[0].dispatchEvent(new Event('change', {{ bubbles: true }}));
                 """, desc)
                 WebDriverWait(self.driver, 5).until(lambda d: desc.get_attribute('value') != '')
                 print('     Descrição preenchida')
@@ -513,4 +525,3 @@ class Ponto:
         hoje = datetime.today()
         data_str = hoje.strftime("%Y-%m-%d")
         self._cadastrar_sessao(data_str, "09:00", "12:00")
-
