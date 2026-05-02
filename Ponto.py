@@ -401,8 +401,9 @@ class Ponto:
                     'Trabalhando nos Projeto: kora-mms-commons',
                     'Trabalhando nos Projeto: kora-mms-prestador',
                     'Trabalhando nos Projeto: kora-mms-ordem-servico',
+                    'Trabalhando nos Projeto: kora-mms-context',
                 ]
-                
+
                 descricao_aleatoria = random.choice(descricoes)
                 self.driver.execute_script(f"""
                     arguments[0].value = '{descricao_aleatoria}';
