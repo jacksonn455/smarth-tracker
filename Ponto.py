@@ -402,6 +402,7 @@ class Ponto:
                     'Trabalhando nos Projeto: kora-mms-prestador',
                     'Trabalhando nos Projeto: kora-mms-ordem-servico',
                     'Trabalhando nos Projeto: kora-mms-context',
+                    'Trabalhando nos Projeto: kora-mms-toacalendarsync-job'
                 ]
 
                 descricao_aleatoria = random.choice(descricoes)
